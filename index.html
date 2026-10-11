@@ -67,10 +67,10 @@ class Fruit {
         
         this.x = Math.random() * (canvas.width - 200) + 100;
         this.y = canvas.height + 60;
-        this.radius = 60; // Немного увеличили размер фрукта для удобства
-        this.speedX = (Math.random() - 0.5) * 2; // Уменьшили горизонтальную скорость
-        this.speedY = -Math.random() * 3 - 8; // Снизили силу прыжка (было -11), теперь летят плавнее
-        this.gravity = 0.12; // Ослабили гравитацию (было 0.22), чтобы они дольше "зависали" вверху
+        this.radius = 65; // Ещё немного увеличили, чтобы легче было попадать
+        this.speedX = (Math.random() - 0.5) * 1; // Почти не двигаются вбок
+        this.speedY = -Math.random() * 2 - 5; // Сверхнизкий толчок вверх (летят медленно)
+        this.gravity = 0.04; // Суперслабая гравитация (зависают в воздухе очень долго)
         this.color = fruitColors[Math.floor(Math.random() * fruitColors.length)];
         this.isCut = false;
         this.opacity = 1;
@@ -126,7 +126,7 @@ class Fruit {
     }
 }
 
-// Новые фрукты вылетают раз в 5 секунд (5000 миллисекунд)
+// Новая волна вылетает очень редко — раз в 8 секунд (8000 миллисекунд)
 setInterval(() => {
     if (!currentWordPair) return;
 
@@ -139,7 +139,7 @@ setInterval(() => {
             fruits.push(new Fruit(randomPair, false));
         }
     }
-}, 5000); 
+}, 8000); 
 
 function checkCut(point, fruit) {
     let dist = Math.hypot(point.x - fruit.x, point.y - fruit.y);
@@ -163,8 +163,7 @@ function handleMove(x, y) {
                 scoreEl.innerText = score;
                 setNewTask();
             } else {
-                score = Math.max(0, score - 5);
-                scoreEl.innerText = score;
+                // ШТРАФ УДАЛЕН: очки за ошибку больше не отнимаются
             }
         }
     });
@@ -182,12 +181,12 @@ canvas.addEventListener('mousemove', (e) => {
 
 canvas.addEventListener('touchstart', (e) => {
     const r = canvas.getBoundingClientRect();
-    if(e.touches.length > 0) handleStart(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+    if(e.touches.length > 0) handleStart(e.touches.clientX - r.left, e.touches.clientY - r.top);
 });
 canvas.addEventListener('touchend', handleEnd);
 canvas.addEventListener('touchmove', (e) => {
     const r = canvas.getBoundingClientRect();
-    if(e.touches.length > 0) handleMove(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+    if(e.touches.length > 0) handleMove(e.touches.clientX - r.left, e.touches.clientY - r.top);
 });
 
 setNewTask();
@@ -201,9 +200,8 @@ function animate() {
 
         if (fruits[i].y > canvas.height + 100 || fruits[i].opacity <= 0) {
             if (fruits[i].isTarget && !fruits[i].isCut) {
-                score = Math.max(0, score - 2);
-                scoreEl.innerText = score;
-                setNewTask();
+                // ШТРАФ УДАЛЕН: очки за улетевший фрукт больше не списываются
+                setNewTask(); // Просто выдаем новое задание
             }
             fruits.splice(i, 1);
         }
@@ -211,7 +209,7 @@ function animate() {
 
     if (isDrawing && cutLine.length > 1) {
         ctx.beginPath();
-        ctx.moveTo(cutLine[0].x, cutLine[0].y);
+        ctx.moveTo(cutLine[i-1].x, cutLine[i-1].y); // Исправлен хвост линии разреза
         for (let i = 1; i < cutLine.length; i++) {
             ctx.lineTo(cutLine[i].x, cutLine[i].y);
         }
