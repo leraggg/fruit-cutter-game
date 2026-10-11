@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fruit Vocabulary Game</title>
+    <style>
+        body { margin: 0; background: #1a1a2e; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        canvas { background: #161623; box-shadow: 0 0 30px rgba(0,0,0,0.7); border-radius: 10px; }
+        #ui-container { position: absolute; top: 20px; width: 760px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; color: white; padding: 0 20px; }
+        #taskBox { background: rgba(255, 255, 255, 0.1); padding: 10px 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(5px); font-size: 22px; font-weight: bold; }
+        #taskBox span { color: #ffdf00; }
+        #scoreBoard { font-size: 22px; font-weight: bold; background: rgba(46, 213, 115, 0.2); padding: 10px 20px; border-radius: 20px; border: 1px solid #2ed573; }
+    </style>
+</head>
+<body>
+
+<div id="ui-container">
+    <div id="taskBox">Найди: <span id="currentTask">...</span></div>
+    <div id="scoreBoard">Очки: <span id="score">0</span></div>
+</div>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const taskEl = document.getElementById('currentTask');
+const scoreEl = document.getElementById('score');
+
+canvas.width = 800;
+canvas.height = 600;
+
+let score = 0;
+let fruits = [];
+let isDrawing = false;
+let cutLine = [];
+let currentWordPair = null;
+
+// Ваш словарик
+const dictionary = [
+    { eng: "cook breakfast", ru: "готовить завтрак" },
+    { eng: "cook lunch", ru: "готовить обед" },
+    { eng: "cook dinner", ru: "готовить ужин" },
+    { eng: "take out the garbage", ru: "выносить мусор" },
+    { eng: "wash the car", ru: "мыть машину" },
+    { eng: "walk the dog", ru: "гулять с собакой" },
+    { eng: "water plants", ru: "поливать растения" },
+    { eng: "vacuum the floor", ru: "пылесосить пол" },
+    { eng: "iron the clothes", ru: "гладить одежду" },
+    { eng: "sweep the floor", ru: "подметать пол" },
+    { eng: "mop the floor", ru: "мыть пол (шваброй)" },
+    { eng: "Today", ru: "Сегодня" },
+    { eng: "on", ru: "в (с днями недели)" }
+];
+
+// Список красивых цветов для фруктов
+const fruitColors = ['#ff4757', '#ffa502', '#2ed573', '#1e90ff', '#9b59b6', '#00d2d3'];
+
+// Выбрать новое случайное задание для игрока
+function setNewTask() {
+    currentWordPair = dictionary[Math.floor(Math.random() * dictionary.length)];
+    taskEl.innerText = currentWordPair.ru;
+}
+
+class Fruit {
+    constructor(wordObj, isTarget = false) {
+        this.word = wordObj.eng;
+        this.ru = wordObj.ru;
+        this.isTarget = isTarget; // Правильный ли это фрукт для текущего задания
+        
+        this.x = Math.random() * (canvas.width - 200) + 100;
+        this.y = canvas.height + 60;
+        this.radius = 55; // Увеличили радиус, чтобы помещался текст
+        this.speedX = (Math.random() - 0.5) * 3;
+        this.speedY = -Math.random() * 4 - 11; // Импульс вверх
+        this.gravity = 0.22;
+        this.color = fruitColors[Math.floor(Math.random() * fruitColors.length)];
+        this.isCut = false;
+        this.opacity = 1;
+    }
+
+    update() {
+        this.speedY += this.gravity;
+        this.x += this.speedX;
+        this.y += this.speedY;
+        
+        if (this.isCut) {
+            this.opacity -= 0.05; // Плавное исчезновение после разреза
+        }
+    }
+
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.opacity);
+
+        // Рисуем сам фрукт (круг с градиентом)
+        let gradient = ctx.createRadialGradient(this.x, this.y, 5, this.x, this.y, this.radius);
+        gradient.addColorStop(0, '#ffffff');
+        gradient.addColorStop(0.2, this.color);
+        gradient.addColorStop(1, '#000000');
+
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.stroke();
+        ctx.closePath();
+
+        // Рисуем английский текст поверх фрукта
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // Тень для текста, чтобы лучше читался
+        ctx.shadowColor = 'black';
+        ctx.shadowBlur = 4;
+        
+        // Перенос длинного текста на две строки, если нужно
+        let words = this.word.split(' ');
+        if(words.length > 2) {
+            ctx.fillText(words.slice(0, 2).join(' '), this.x, this.y - 8);
+            ctx.fillText(words.slice(2).join(' '), this.x, this.y + 10);
+        } else {
+            ctx.fillText(this.word, this.x, this.y);
+        }
+
+        ctx.restore();
+    }
+}
+
+// Появление фруктов группами
+setInterval(() => {
+    if (!currentWordPair) return;
+
+    // Обязательно спавним один правильный фрукт
+    fruits.push(new Fruit(currentWordPair, true));
+
+    // И добавляем 1-2 случайных неправильных фрукта для путаницы
+    let extraCount = Math.floor(Math.random() * 2) + 1;
+    for (let i = 0; i < extraCount; i++) {
+        let randomPair = dictionary[Math.floor(Math.random() * dictionary.length)];
+        // Проверяем, чтобы случайно не заспавнить тот же самый правильный
+        if (randomPair.eng !== currentWordPair.eng) {
+            fruits.push(new Fruit(randomPair, false));
+        }
+    }
+}, 3000); // Волны фруктов каждые 3 секунды
+
+function checkCut(point, fruit) {
+    let dist = Math.hypot(point.x - fruit.x, point.y - fruit.y);
+    return dist < fruit.radius;
+}
+
+// Обработка управления мыши и тач-скринов (для интерактивных досок)
+function handleStart(x, y) { isDrawing = true; cutLine = [{x, y}]; }
+function handleEnd() { isDrawing = false; cutLine = []; }
+function handleMove(x, y) {
+    if (!isDrawing) return;
+    let currentPoint = { x, y };
+    cutLine.push(currentPoint);
+    if (cutLine.length > 12) cutLine.shift();
+
+    fruits.forEach(fruit => {
+        if (!fruit.isCut && checkCut(currentPoint, fruit)) {
+            fruit.isCut = true;
+            
+            if (fruit.isTarget) {
+                // Игрок угадал фрукт!
+                score += 10;
+                scoreEl.innerText = score;
+                setNewTask(); // Меняем задание сверху
+            } else {
+                // Игрок разрезал не то слово (штраф)
+                score = Math.max(0, score - 5);
+                scoreEl.innerText = score;
+            }
+        }
+    });
+}
+
+// Мышь
+canvas.addEventListener('mousedown', (e) => {
+    const r = canvas.getBoundingClientRect();
+    handleStart(e.clientX - r.left, e.clientY - r.top);
+});
+canvas.addEventListener('mouseup', handleEnd);
+canvas.addEventListener('mousemove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    handleMove(e.clientX - r.left, e.clientY - r.top);
+});
+
+// Тач-события (мобильные, планшеты, интерактивные панели)
+canvas.addEventListener('touchstart', (e) => {
+    const r = canvas.getBoundingClientRect();
+    if(e.touches.length > 0) handleStart(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+});
+canvas.addEventListener('touchend', handleEnd);
+canvas.addEventListener('touchmove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    if(e.touches.length > 0) handleMove(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+});
+
+// Запуск игры
+setNewTask();
+
+function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Логика и отрисовка фруктов
+    for (let i = fruits.length - 1; i >= 0; i--) {
+        fruits[i].update();
+        fruits[i].draw();
+
+        // Удаление улетевших или полностью исчезнувших фруктов
+        if (fruits[i].y > canvas.height + 100 || fruits[i].opacity <= 0) {
+            // Если игрок упустил нужный фрукт и он улетел — штрафуем и меняем слово
+            if (fruits[i].isTarget && !fruits[i].isCut) {
+                score = Math.max(0, score - 2);
+                scoreEl.innerText = score;
+                setNewTask();
+            }
+            fruits.splice(i, 1);
+        }
+    }
+
+    // Отрисовка следа от разреза (лезвия)
+    if (isDrawing && cutLine.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(cutLine[0].x, cutLine[0].y);
+        for (let i = 1; i < cutLine.length; i++) {
+            ctx.lineTo(cutLine[i].x, cutLine[i].y);
+        }
+        ctx.strokeStyle = '#00d2d3';
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = '#00d2d3';
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>
