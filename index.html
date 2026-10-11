@@ -65,28 +65,40 @@ class Fruit {
         this.ru = wordObj.ru;
         this.isTarget = isTarget;
         
-        this.x = Math.random() * (canvas.width - 200) + 100;
-        this.y = canvas.height + 60;
-        this.radius = 65; // Ещё немного увеличили, чтобы легче было попадать
-        this.speedX = (Math.random() - 0.5) * 1; // Почти не двигаются вбок
-        this.speedY = -Math.random() * 2 - 5; // Сверхнизкий толчок вверх (летят медленно)
-        this.gravity = 0.04; // Суперслабая гравитация (зависают в воздухе очень долго)
+        this.radius = 65; 
+        this.x = Math.random() * (canvas.width - 240) + 120;
+        
+        // Стартовая и конечная позиции по Y
+        this.startY = canvas.height + this.radius;
+        this.endY = -this.radius;
+        this.y = this.startY;
+        
+        // Время полета в миллисекундах (5 секунд)
+        this.flightDuration = 5000; 
+        this.startTime = Date.now();
+        
         this.color = fruitColors[Math.floor(Math.random() * fruitColors.length)];
         this.isCut = false;
         this.opacity = 1;
     }
 
     update() {
-        this.speedY += this.gravity;
-        this.x += this.speedX;
-        this.y += this.speedY;
-        
         if (this.isCut) {
             this.opacity -= 0.05;
+            return;
         }
+
+        // Вычисляем пройденное время и положение фрукта на экране
+        let elapsed = Date.now() - this.startTime;
+        let progress = Math.min(elapsed / this.flightDuration, 1);
+        
+        // Линейное движение снизу вверх за ровно 5 секунд
+        this.y = this.startY + (this.endY - this.startY) * progress;
     }
 
     draw() {
+        if (this.opacity <= 0) return;
+        
         ctx.save();
         ctx.globalAlpha = Math.max(0, this.opacity);
 
@@ -105,7 +117,7 @@ class Fruit {
         ctx.closePath();
 
         ctx.fillStyle = 'white';
-        ctx.font = 'bold 13px Arial';
+        ctx.font = 'bold 12px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.shadowColor = 'black';
@@ -126,7 +138,7 @@ class Fruit {
     }
 }
 
-// Новая волна вылетает очень редко — раз в 8 секунд (8000 миллисекунд)
+// Новые фрукты появляются раз в 6 секунд
 setInterval(() => {
     if (!currentWordPair) return;
 
@@ -139,7 +151,7 @@ setInterval(() => {
             fruits.push(new Fruit(randomPair, false));
         }
     }
-}, 8000); 
+}, 6000); 
 
 function checkCut(point, fruit) {
     let dist = Math.hypot(point.x - fruit.x, point.y - fruit.y);
@@ -162,8 +174,6 @@ function handleMove(x, y) {
                 score += 10;
                 scoreEl.innerText = score;
                 setNewTask();
-            } else {
-                // ШТРАФ УДАЛЕН: очки за ошибку больше не отнимаются
             }
         }
     });
@@ -181,12 +191,12 @@ canvas.addEventListener('mousemove', (e) => {
 
 canvas.addEventListener('touchstart', (e) => {
     const r = canvas.getBoundingClientRect();
-    if(e.touches.length > 0) handleStart(e.touches.clientX - r.left, e.touches.clientY - r.top);
+    if(e.touches.length > 0) handleStart(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
 });
 canvas.addEventListener('touchend', handleEnd);
 canvas.addEventListener('touchmove', (e) => {
     const r = canvas.getBoundingClientRect();
-    if(e.touches.length > 0) handleMove(e.touches.clientX - r.left, e.touches.clientY - r.top);
+    if(e.touches.length > 0) handleMove(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
 });
 
 setNewTask();
@@ -198,18 +208,20 @@ function animate() {
         fruits[i].update();
         fruits[i].draw();
 
-        if (fruits[i].y > canvas.height + 100 || fruits[i].opacity <= 0) {
+        // Проверка: завершились ли 5 секунд полета
+        let elapsed = Date.now() - fruits[i].startTime;
+        if (elapsed >= fruits[i].flightDuration || fruits[i].opacity <= 0) {
             if (fruits[i].isTarget && !fruits[i].isCut) {
-                // ШТРАФ УДАЛЕН: очки за улетевший фрукт больше не списываются
-                setNewTask(); // Просто выдаем новое задание
+                setNewTask();
             }
             fruits.splice(i, 1);
         }
     }
 
     if (isDrawing && cutLine.length > 1) {
+        ctx.save();
         ctx.beginPath();
-        ctx.moveTo(cutLine[i-1].x, cutLine[i-1].y); // Исправлен хвост линии разреза
+        ctx.moveTo(cutLine[0].x, cutLine[0].y);
         for (let i = 1; i < cutLine.length; i++) {
             ctx.lineTo(cutLine[i].x, cutLine[i].y);
         }
@@ -219,6 +231,7 @@ function animate() {
         ctx.shadowColor = '#00d2d3';
         ctx.shadowBlur = 10;
         ctx.stroke();
+        ctx.restore();
     }
 
     requestAnimationFrame(animate);
