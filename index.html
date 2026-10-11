@@ -36,7 +36,6 @@ let isDrawing = false;
 let cutLine = [];
 let currentWordPair = null;
 
-// Ваш словарик
 const dictionary = [
     { eng: "cook breakfast", ru: "готовить завтрак" },
     { eng: "cook lunch", ru: "готовить обед" },
@@ -53,10 +52,8 @@ const dictionary = [
     { eng: "on", ru: "в (с днями недели)" }
 ];
 
-// Список красивых цветов для фруктов
 const fruitColors = ['#ff4757', '#ffa502', '#2ed573', '#1e90ff', '#9b59b6', '#00d2d3'];
 
-// Выбрать новое случайное задание для игрока
 function setNewTask() {
     currentWordPair = dictionary[Math.floor(Math.random() * dictionary.length)];
     taskEl.innerText = currentWordPair.ru;
@@ -66,14 +63,14 @@ class Fruit {
     constructor(wordObj, isTarget = false) {
         this.word = wordObj.eng;
         this.ru = wordObj.ru;
-        this.isTarget = isTarget; // Правильный ли это фрукт для текущего задания
+        this.isTarget = isTarget;
         
         this.x = Math.random() * (canvas.width - 200) + 100;
         this.y = canvas.height + 60;
-        this.radius = 55; // Увеличили радиус, чтобы помещался текст
-        this.speedX = (Math.random() - 0.5) * 3;
-        this.speedY = -Math.random() * 4 - 11; // Импульс вверх
-        this.gravity = 0.22;
+        this.radius = 60; // Немного увеличили размер фрукта для удобства
+        this.speedX = (Math.random() - 0.5) * 2; // Уменьшили горизонтальную скорость
+        this.speedY = -Math.random() * 3 - 8; // Снизили силу прыжка (было -11), теперь летят плавнее
+        this.gravity = 0.12; // Ослабили гравитацию (было 0.22), чтобы они дольше "зависали" вверху
         this.color = fruitColors[Math.floor(Math.random() * fruitColors.length)];
         this.isCut = false;
         this.opacity = 1;
@@ -85,7 +82,7 @@ class Fruit {
         this.y += this.speedY;
         
         if (this.isCut) {
-            this.opacity -= 0.05; // Плавное исчезновение после разреза
+            this.opacity -= 0.05;
         }
     }
 
@@ -93,7 +90,6 @@ class Fruit {
         ctx.save();
         ctx.globalAlpha = Math.max(0, this.opacity);
 
-        // Рисуем сам фрукт (круг с градиентом)
         let gradient = ctx.createRadialGradient(this.x, this.y, 5, this.x, this.y, this.radius);
         gradient.addColorStop(0, '#ffffff');
         gradient.addColorStop(0.2, this.color);
@@ -108,20 +104,20 @@ class Fruit {
         ctx.stroke();
         ctx.closePath();
 
-        // Рисуем английский текст поверх фрукта
         ctx.fillStyle = 'white';
-        ctx.font = 'bold 12px Arial';
+        ctx.font = 'bold 13px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // Тень для текста, чтобы лучше читался
         ctx.shadowColor = 'black';
         ctx.shadowBlur = 4;
         
-        // Перенос длинного текста на две строки, если нужно
         let words = this.word.split(' ');
         if(words.length > 2) {
             ctx.fillText(words.slice(0, 2).join(' '), this.x, this.y - 8);
             ctx.fillText(words.slice(2).join(' '), this.x, this.y + 10);
+        } else if(words.length === 2) {
+            ctx.fillText(words[0], this.x, this.y - 8);
+            ctx.fillText(words[1], this.x, this.y + 10);
         } else {
             ctx.fillText(this.word, this.x, this.y);
         }
@@ -130,30 +126,26 @@ class Fruit {
     }
 }
 
-// Появление фруктов группами
+// Новые фрукты вылетают раз в 5 секунд (5000 миллисекунд)
 setInterval(() => {
     if (!currentWordPair) return;
 
-    // Обязательно спавним один правильный фрукт
     fruits.push(new Fruit(currentWordPair, true));
 
-    // И добавляем 1-2 случайных неправильных фрукта для путаницы
     let extraCount = Math.floor(Math.random() * 2) + 1;
     for (let i = 0; i < extraCount; i++) {
         let randomPair = dictionary[Math.floor(Math.random() * dictionary.length)];
-        // Проверяем, чтобы случайно не заспавнить тот же самый правильный
         if (randomPair.eng !== currentWordPair.eng) {
             fruits.push(new Fruit(randomPair, false));
         }
     }
-}, 3000); // Волны фруктов каждые 3 секунды
+}, 5000); 
 
 function checkCut(point, fruit) {
     let dist = Math.hypot(point.x - fruit.x, point.y - fruit.y);
     return dist < fruit.radius;
 }
 
-// Обработка управления мыши и тач-скринов (для интерактивных досок)
 function handleStart(x, y) { isDrawing = true; cutLine = [{x, y}]; }
 function handleEnd() { isDrawing = false; cutLine = []; }
 function handleMove(x, y) {
@@ -167,12 +159,10 @@ function handleMove(x, y) {
             fruit.isCut = true;
             
             if (fruit.isTarget) {
-                // Игрок угадал фрукт!
                 score += 10;
                 scoreEl.innerText = score;
-                setNewTask(); // Меняем задание сверху
+                setNewTask();
             } else {
-                // Игрок разрезал не то слово (штраф)
                 score = Math.max(0, score - 5);
                 scoreEl.innerText = score;
             }
@@ -180,7 +170,6 @@ function handleMove(x, y) {
     });
 }
 
-// Мышь
 canvas.addEventListener('mousedown', (e) => {
     const r = canvas.getBoundingClientRect();
     handleStart(e.clientX - r.left, e.clientY - r.top);
@@ -191,7 +180,6 @@ canvas.addEventListener('mousemove', (e) => {
     handleMove(e.clientX - r.left, e.clientY - r.top);
 });
 
-// Тач-события (мобильные, планшеты, интерактивные панели)
 canvas.addEventListener('touchstart', (e) => {
     const r = canvas.getBoundingClientRect();
     if(e.touches.length > 0) handleStart(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
@@ -202,20 +190,16 @@ canvas.addEventListener('touchmove', (e) => {
     if(e.touches.length > 0) handleMove(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
 });
 
-// Запуск игры
 setNewTask();
 
 function animate() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Логика и отрисовка фруктов
     for (let i = fruits.length - 1; i >= 0; i--) {
         fruits[i].update();
         fruits[i].draw();
 
-        // Удаление улетевших или полностью исчезнувших фруктов
         if (fruits[i].y > canvas.height + 100 || fruits[i].opacity <= 0) {
-            // Если игрок упустил нужный фрукт и он улетел — штрафуем и меняем слово
             if (fruits[i].isTarget && !fruits[i].isCut) {
                 score = Math.max(0, score - 2);
                 scoreEl.innerText = score;
@@ -225,7 +209,6 @@ function animate() {
         }
     }
 
-    // Отрисовка следа от разреза (лезвия)
     if (isDrawing && cutLine.length > 1) {
         ctx.beginPath();
         ctx.moveTo(cutLine[0].x, cutLine[0].y);
@@ -238,7 +221,6 @@ function animate() {
         ctx.shadowColor = '#00d2d3';
         ctx.shadowBlur = 10;
         ctx.stroke();
-        ctx.restore();
     }
 
     requestAnimationFrame(animate);
